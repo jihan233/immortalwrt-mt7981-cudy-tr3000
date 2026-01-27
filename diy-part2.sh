@@ -34,3 +34,25 @@ tar -zxvf "clash_meta.tar.gz" -C files/etc/openclash/core/
 mv files/etc/openclash/core/clash files/etc/openclash/core/clash_meta
 chmod +x files/etc/openclash/core/clash_meta
 rm -f "clash_meta.tar.gz"
+# Description: Modify memory definition for TR3000 512M RAM mod
+# Warning: Only strictly for hardware modified to 512M RAM
+
+# 1. 查找 TR3000 的设备树文件 (通常位于 target/linux/mediatek 目录下)
+dts_file=$(find target/linux/mediatek -name "mt7981-cudy-tr3000.dts")
+
+if [ -f "$dts_file" ]; then
+    echo "Found DTS file: $dts_file"
+    
+    # 2. 将内存定义从 256M (0x10000000) 修改为 512M (0x20000000)
+    # 原始代码通常为: reg = <0 0x40000000 0 0x10000000>;
+    sed -i 's/0 0x10000000/0 0x20000000/g' "$dts_file"
+    
+    # 二次确认（有些源码写法可能是十六进制小写或不同格式，增加一种通用匹配）
+    # 如果上面的 sed 没生效，尝试直接匹配 reg 节点
+    sed -i '/memory/,/};/ s/0x10000000/0x20000000/' "$dts_file"
+
+    echo "Memory limit updated to 512MB for TR3000."
+else
+    echo "Error: TR3000 DTS file not found!"
+    exit 1
+fi
