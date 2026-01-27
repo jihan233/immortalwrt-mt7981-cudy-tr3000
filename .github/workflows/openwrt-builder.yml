@@ -15,6 +15,7 @@ on:
         default: '256M'
         options:
           - '256M'
+          - '512M'             # <--- 【已添加】这里必须加，菜单才会有
           - '128M'
           - '128M-Ubootmod'
       commit:
@@ -74,9 +75,26 @@ jobs:
       - name: 🔧 Set device variables
         run: |
           case "$DEVICE_INPUT" in
-            "256M") echo "CONFIG_FILE=config/256m.config" >> $GITHUB_ENV ;;
-            "128M") echo "CONFIG_FILE=config/128m.config" >> $GITHUB_ENV ;;
-            "128M-Ubootmod") echo "CONFIG_FILE=config/128muboot.config" >> $GITHUB_ENV ;;
+            "256M")
+              echo "CONFIG_FILE=config/256m.config" >> $GITHUB_ENV
+              echo "FIRMWARE_NAME=256M" >> $GITHUB_ENV
+              echo "DELETE_TAG_PATTERN=^256M-.*" >> $GITHUB_ENV
+              ;;
+            "512M")   # <--- 【已添加】这里必须加，脚本才知道怎么处理
+              echo "CONFIG_FILE=config/256m.config" >> $GITHUB_ENV  # 复用256配置
+              echo "FIRMWARE_NAME=512M" >> $GITHUB_ENV
+              echo "DELETE_TAG_PATTERN=^512M-.*" >> $GITHUB_ENV
+              ;;
+            "128M")
+              echo "CONFIG_FILE=config/128m.config" >> $GITHUB_ENV
+              echo "FIRMWARE_NAME=128M" >> $GITHUB_ENV
+              echo "DELETE_TAG_PATTERN=^128M-.*" >> $GITHUB_ENV
+              ;;
+            "128M-Ubootmod")
+              echo "CONFIG_FILE=config/128muboot.config" >> $GITHUB_ENV
+              echo "FIRMWARE_NAME=128M_Ubootmod" >> $GITHUB_ENV
+              echo "DELETE_TAG_PATTERN=^128M_Ubootmod-.*" >> $GITHUB_ENV
+              ;;
             *) echo "Unknown device: $DEVICE_INPUT" >&2; exit 1 ;;
           esac
 
@@ -133,7 +151,6 @@ jobs:
             exit 0
           fi
 
-          # 确保目标目录存在并拷贝  
           mkdir -p "$(dirname "$DST")"   
           cp -f "$SRC" "$DST"   
           echo "Copied .config to $DST"   
@@ -143,14 +160,12 @@ jobs:
           git config user.name "github-actions[bot]"   
           git config user.email "github-actions[bot]@users.noreply.github.com"   
  
-          # 检查是否有变更  
           git add "$CONFIG_FILE"   
           if git diff --cached --quiet; then  
             echo "No changes to commit."   
             exit 0  
           fi  
  
-          # 直接推送到主分支  
           git commit -m "Update OpenWrt config: ${CONFIG_FILE}"   
           git push origin HEAD:main
 
@@ -208,12 +223,10 @@ jobs:
 
           if [ -n "${REPO_COMMIT}" ]; then
             echo "🔀 Fetching specified commit: ${REPO_COMMIT}"
-            # 直接抓取特定 commit，深度为 1
             git fetch --depth 1 origin "${REPO_COMMIT}"
             git checkout FETCH_HEAD
           else
             echo "🆕 Fetching latest commit on branch: ${REPO_BRANCH}"
-            # 直接抓取特定分支，深度为 1
             git fetch --depth 1 origin "${REPO_BRANCH}"
             git checkout FETCH_HEAD
           fi
@@ -228,6 +241,11 @@ jobs:
               echo "CONFIG_FILE=config/256m.config" >> $GITHUB_ENV
               echo "FIRMWARE_NAME=256M" >> $GITHUB_ENV
               echo "DELETE_TAG_PATTERN=^256M-.*" >> $GITHUB_ENV
+              ;;
+            "512M")
+              echo "CONFIG_FILE=config/256m.config" >> $GITHUB_ENV
+              echo "FIRMWARE_NAME=512M" >> $GITHUB_ENV
+              echo "DELETE_TAG_PATTERN=^512M-.*" >> $GITHUB_ENV
               ;;
             "128M")
               echo "CONFIG_FILE=config/128m.config" >> $GITHUB_ENV
@@ -311,7 +329,6 @@ jobs:
           echo "🔨 Starting compilation with $(nproc) threads"
           echo "CCACHE_DIR: $CCACHE_DIR"
 
-          # 首先尝试多线程编译
           if make -j$(nproc) CC="ccache gcc" CXX="ccache g++"; then
             echo "✅ Multi-threaded compilation succeeded"
             echo "status=success" >> $GITHUB_OUTPUT
@@ -328,11 +345,9 @@ jobs:
             fi
           fi
 
-          # 显示 ccache 统计
           echo "📊 ccache statistics:"
           ccache -s
 
-          # 获取设备名称
           grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
           [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
           echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
@@ -420,4 +435,3 @@ jobs:
         with:
           retain_days: 0
           keep_minimum_runs: 9
-
